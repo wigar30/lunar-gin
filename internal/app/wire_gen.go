@@ -8,7 +8,17 @@ package app
 
 import (
 	"lunar/internal/app/config"
+	"lunar/internal/app/driver"
 	"lunar/internal/presenter/http/controller"
+	auth2 "lunar/internal/presenter/http/controller/auth"
+	role3 "lunar/internal/presenter/http/controller/role"
+	user3 "lunar/internal/presenter/http/controller/user"
+	"lunar/internal/presenter/http/middleware"
+	"lunar/internal/repository/role"
+	"lunar/internal/repository/user"
+	"lunar/internal/usecase/auth"
+	role2 "lunar/internal/usecase/role"
+	user2 "lunar/internal/usecase/user"
 )
 
 // Injectors from wire.go:
@@ -16,8 +26,18 @@ import (
 func NewWire() config.HTTPServiceInterface {
 	envConfigs := config.NewViper()
 	engine := config.NewGinGonic(envConfigs)
-	controllerController := controller.NewController()
 	logger := config.NewLogger()
-	httpServiceInterface := config.NewListenApp(engine, controllerController, envConfigs, logger)
+	database := driver.NewConnMySql(envConfigs, logger)
+	roleRepositoryInterface := role.NewRoleRepository(database)
+	roleUseCaseInterface := role2.NewRoleUseCase(roleRepositoryInterface)
+	roleController := role3.NewRoleController(roleUseCaseInterface)
+	userRepositoryInterface := user.NewUserRepository(database)
+	authUseCaseInterface := auth.NewAuthUseCase(userRepositoryInterface, envConfigs)
+	authController := auth2.NewAuthController(authUseCaseInterface)
+	userUseCaseInterface := user2.NewUserUseCase(userRepositoryInterface)
+	userController := user3.NewUserController(userUseCaseInterface)
+	controllerController := controller.NewController(roleController, authController, userController)
+	middlewareMiddleware := middleware.NewMiddleware(userRepositoryInterface, envConfigs)
+	httpServiceInterface := config.NewListenApp(engine, controllerController, envConfigs, logger, middlewareMiddleware)
 	return httpServiceInterface
 }
